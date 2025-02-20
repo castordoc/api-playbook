@@ -3,6 +3,11 @@ CastorDoc api examples
 
 ## SQL Assistant:
 
+Description:
+- Retrieve the best tables to use in the context: they are either provided by the user, or automatically found based on previously ran sql queries
+- SQL assistant generates an answer to the user question
+
+
 Example usage: 
 
 - You must provide the source id of the warehouse the tables belong to.
