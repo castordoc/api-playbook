@@ -10,7 +10,7 @@ _HEADERS = {
 
 
 def best_matching_tables(question: str) -> list[str]:
-    """"""
+    """Fetch the table ids linked to the query that best matches the `question`"""
     query = """query {
       searchQueries (
       data: {
@@ -33,12 +33,19 @@ def best_matching_tables(question: str) -> list[str]:
 
 
 def _path(table: dict) -> str:
+    """path is `database.schema.table`"""
     database = table["schema"]["database"]["name"]
     schema = table["schema"]["name"]
     return ".".join([database, schema, table["name"]])
 
 
 def retrieve_metadata_by_path(source_id, table_paths) -> list[dict]:
+    """
+    Fetch table metadata for given table paths.
+    We need to deduplicate since we scope with `pathContains`.
+    For example, if there are tables `backend.public.lineage` and `backend.public.lineage_augmented`,
+    scoping with `backend.public.lineage` would match both tables hence we need to filter based on path
+    """
     tables = []
     for path in table_paths:
         query = """query {
@@ -81,7 +88,9 @@ def retrieve_metadata_by_path(source_id, table_paths) -> list[dict]:
 
 
 def retrieve_metadata_by_id(table_ids) -> list[dict]:
-    tables = []
+    """
+    Fetch table metadata for given table ids.
+    """
     query = """query {
               getTables (
               scope: {
@@ -117,6 +126,7 @@ def retrieve_metadata_by_id(table_ids) -> list[dict]:
 
 
 def retrieve_column_joins(table_ids) -> list[dict]:
+    """Fetch column joins for given table ids."""
     query = """query {
                   getColumnJoins (
                   scope: {

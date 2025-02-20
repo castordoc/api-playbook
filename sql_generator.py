@@ -23,7 +23,7 @@ logger.addHandler(console_handle)
 
 
 def _args() -> tuple[str, str, list[str] | None]:
-    """"""
+    """helper method to parse user arguments"""
     parser = ArgumentParser()
     parser.add_argument(
         "-s",
@@ -48,11 +48,11 @@ def _args() -> tuple[str, str, list[str] | None]:
     if args.table_paths:
         paths = args.table_paths.strip().split(",")
         table_paths = [p.strip() for p in paths]  # robust to spaces in user input
-    # TODO: add arguments validation
     return source_id, question, table_paths
 
 
 def generate_sql(context, question) -> str:
+    """Generate an answer from a SQL assistant that answers the `question`, given a `context`."""
     client = OpenAI(api_key=OPENAI_KEY)
     prompt = PROMPT_TPL.format(context=context, question=question)
     messages = [{"role": "user", "content": prompt}]
@@ -66,6 +66,7 @@ def generate_sql(context, question) -> str:
 def retrieve_table_metadata(
     question: str, source_id: str, table_paths: list[str] | None
 ) -> list[dict]:
+    """"Retrieve table metadata: either the provided tables, or the `best matching` tables we can think of"""
     if table_paths:
         logger.info(f"Table paths were provided: retrieving metadata for {table_paths}")
         return retrieve_metadata_by_path(source_id, table_paths)
@@ -78,6 +79,7 @@ def retrieve_table_metadata(
 
 
 def craft_context(question: str, table_metadata) -> str:
+    """"craft the context to be provided to the LLM"""
     context_metadata = {"tables": table_metadata}
     return CONTEXT_TPL.format(context_metadata=json.dumps(context_metadata))
 
