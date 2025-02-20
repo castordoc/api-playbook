@@ -8,27 +8,90 @@ _HEADERS = {
     "Authorization": f"Token castor::{CASTORDOC_TOKEN}",
 }
 
-
-def best_matching_tables(question: str) -> list[str]:
-    """Fetch the table ids linked to the query that best matches the `question`"""
-    query = """query {
-      searchQueries (
-      data: {
-        question: "%s"
-      }
-      ){
+_SEARCH_QUERY = """
+query($question: String!) {
+    searchQueries ( data: { question: $question }) {
         data {
             tableIds
+        } 
+    }
+}
+"""
+
+_GET_TABLES_BY_PATH_QUERY = """
+query($warehouseId: String!, $pathContains: String!) {
+    getTables ( scope: { warehouseId: $warehouseId, pathContains: $pathContains }) {
+        data {
+            id
+            name
+            description
+            slug
+            schema {
+                name
+                database {
+                    name
+                }
+            }
+            columns {
+                name
+                description
+            }
         }
     }
-    }""" % (question)
-    payload = {"query": query, "variables": {}}
+}
+"""
 
+
+_GET_TABLES_BY_ID_QUERY = """
+query($ids: [String!]) {
+    getTables ( scope: { ids: $ids}) {
+        data {
+            id
+            name
+            description
+            slug
+            schema {
+                name
+                database {
+                    name
+                }
+            }
+            columns {
+                name
+                description
+            }
+        }
+    }
+}
+"""
+
+_GET_COLUMN_JOINS_BY_ID_QUERY = """
+query($ids: [String!]) {
+    getColumnJoins ( scope: { tableIds: $tableIds}) {
+        data {
+            firstColumnId
+            secondColumnId
+            count
+        }
+    }
+}
+"""
+
+def _gql_query(query: str, variables: dict) -> dict:
+    payload = {"query": query, "variables": variables}
     response = requests.request(
         "POST", _API_URL, headers=_HEADERS, data=json.dumps(payload)
     )
+    response.raise_for_status()
+    return response.json()
 
-    best_query = json.loads(response.text)["data"]["searchQueries"]["data"][0]
+
+def best_matching_tables(question: str) -> list[str]:
+    """Fetch the table ids linked to the query that best matches the `question`"""
+    variables = {"question": question}
+    payload = {"query": _SEARCH_QUERY, "variables": variables}
+    query = _gql_query(query=_SEARCH_QUERY, variables=variables)
+    best_query = query["data"]["searchQueries"]["data"][0]
     return best_query["tableIds"]
 
 
@@ -39,7 +102,7 @@ def _path(table: dict) -> str:
     return ".".join([database, schema, table["name"]])
 
 
-def retrieve_metadata_by_path(source_id, table_paths) -> list[dict]:
+def retrieve_metadata_by_path(source_id: str, table_paths: list[str]) -> list[dict]:
     """
     Fetch table metadata for given table paths.
     We need to deduplicate since we scope with `pathContains`.
@@ -48,37 +111,10 @@ def retrieve_metadata_by_path(source_id, table_paths) -> list[dict]:
     """
     tables = []
     for path in table_paths:
-        query = """query {
-              getTables (
-              scope: {
-                warehouseId: "%s"
-                pathContains: "%s"
-              }
-              ){
-                data {
-                  id
-                  name
-                  description
-                  slug
-                  schema {
-                    name
-                    database {
-                        name
-                    }
-                  }
-                  columns {
-                    name
-                    description
-                  }
-                }
-              }
-            }""" % (source_id, path)
-        payload = {"query": query, "variables": {}}
-        response = requests.request(
-            "POST", _API_URL, headers=_HEADERS, data=json.dumps(payload)
-        )
+        variables = {"warehouseId": source_id, "pathContains": path}
+        _tables = _gql_query(query=_GET_TABLES_BY_PATH_QUERY, variables=variables)
 
-        fetched_tables = json.loads(response.text)["data"]["getTables"]["data"]
+        fetched_tables = _tables["data"]["getTables"]["data"]
         # need to filter on path, because we might have pulled tables with a paths containing the targeted path.
         for table in fetched_tables:
             if _path(table) == path:
@@ -87,64 +123,21 @@ def retrieve_metadata_by_path(source_id, table_paths) -> list[dict]:
     return tables
 
 
-def retrieve_metadata_by_id(table_ids) -> list[dict]:
+def retrieve_metadata_by_id(table_ids: list[str]) -> list[dict]:
     """
     Fetch table metadata for given table ids.
     """
-    query = """query {
-              getTables (
-              scope: {
-                ids: %s
-              }
-              ){
-                data {
-                  id
-                  name
-                  description
-                  slug
-                  schema {
-                    name
-                    database {
-                        name
-                    }
-                  }
-                  columns {
-                    id
-                    name
-                    description
-                  }
-                }
-              }
-            }""" % (json.dumps(table_ids))
-    payload = {"query": query, "variables": {}}
-    response = requests.request(
-        "POST", _API_URL, headers=_HEADERS, data=json.dumps(payload)
-    )
+    variables = {"ids": table_ids}
+    _tables = _gql_query(query=_GET_TABLES_BY_ID_QUERY, variables=variables)
 
-    tables = json.loads(response.text)["data"]["getTables"]["data"]
+    tables = _tables["data"]["getTables"]["data"]
     return tables
 
 
-def retrieve_column_joins(table_ids) -> list[dict]:
+def retrieve_column_joins(table_ids: list[str]) -> list[dict]:
     """Fetch column joins for given table ids."""
-    query = """query {
-                  getColumnJoins (
-                  scope: {
-                    tableIds: %s
-                  }
-                  ){
-                    data {
-                      firstColumnId
-                      secondColumnId
-                      count
-                    }
-                  }
-                }""" % (json.dumps(table_ids))
-    payload = {"query": query, "variables": {}}
+    variables = {"tableIds": table_ids}
+    column_joins = _gql_query(query=_GET_COLUMN_JOINS_BY_ID_QUERY, variables=variables)
 
-    response = requests.request(
-        "POST", _API_URL, headers=_HEADERS, data=json.dumps(payload)
-    )
-
-    tables = json.loads(response.text)["data"]["getTables"]["data"]
+    tables = column_joins["data"]["getColumnJoins"]["data"]
     return tables

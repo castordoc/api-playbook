@@ -3,14 +3,20 @@ CastorDoc api examples
 
 ## SQL Assistant:
 
-Description:
-- Retrieve the best tables to use in the context: they are either provided by the user, or automatically found based on previously ran sql queries
+### Prerequisites:
+- This example expects in the environment variables the following variables:
+  - `CASTORDOC_TOKEN`: your CastorDoc `API token`, required for all GraphQL queries and mutations
+  - `OPENAI_KEY`: your OpenAI API key, required for generating the SQL query
+
+
+### Description:
+- Retrieve the best tables to use in the context: these are either provided by the user, or automatically found based on previously ran sql queries
 - SQL assistant generates an answer to the user question
 
 
-Example usage: 
+### Example usage: 
 
-- You must provide the source id of the warehouse the tables belong to.
+- You must provide the source id of the warehouse the tables belong to. (provided by CastorDoc, or can be found via `POST Get Sources` (https://apidocs.castordoc.com/#4f0e142f-925c-4175-acd5-2976159d6176))
 - You must provide a question to answer.
 
 ```bash
