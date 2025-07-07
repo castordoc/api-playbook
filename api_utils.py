@@ -32,10 +32,6 @@ query($warehouseId: String!, $pathContains: String!) {
                     name
                 }
             }
-            columns {
-                name
-                description
-            }
         }
     }
 }
@@ -56,10 +52,17 @@ query($ids: [String!]) {
                     name
                 }
             }
-            columns {
-                name
-                description
-            }
+        }
+    }
+}
+"""
+
+_GET_COLUMNS_BY_TABLE_ID = """
+query($tableId: String) {
+    getColumns ( scope: { tableId: $tableId}) {
+        data {
+            name
+            description
         }
     }
 }
@@ -102,6 +105,13 @@ def _path(table: dict) -> str:
     return ".".join([database, schema, table["name"]])
 
 
+def retrieve_column_metadata(table_id: str) -> list[dict]:
+    """Fetch column metadata by table id."""
+    column_variables = {"tableId": table_id}
+    _columns = _gql_query(query=_GET_COLUMNS_BY_TABLE_ID, variables=column_variables)
+    return _columns["data"]["getColumns"]["data"]
+
+
 def retrieve_metadata_by_path(source_id: str, table_paths: list[str]) -> list[dict]:
     """
     Fetch table metadata for given table paths.
@@ -113,13 +123,12 @@ def retrieve_metadata_by_path(source_id: str, table_paths: list[str]) -> list[di
     for path in table_paths:
         variables = {"warehouseId": source_id, "pathContains": path}
         _tables = _gql_query(query=_GET_TABLES_BY_PATH_QUERY, variables=variables)
-
         fetched_tables = _tables["data"]["getTables"]["data"]
         # need to filter on path, because we might have pulled tables with a paths containing the targeted path.
         for table in fetched_tables:
             if _path(table) == path:
-                tables.append(table)
-
+                column_metadata = retrieve_column_metadata(table["id"])
+                tables.append({**table, "columns": column_metadata})
     return tables
 
 
@@ -129,9 +138,12 @@ def retrieve_metadata_by_id(table_ids: list[str]) -> list[dict]:
     """
     variables = {"ids": table_ids}
     _tables = _gql_query(query=_GET_TABLES_BY_ID_QUERY, variables=variables)
-
     tables = _tables["data"]["getTables"]["data"]
-    return tables
+    tables_with_columns = []
+    for table in tables:
+        column_metadata = retrieve_column_metadata(table["id"])
+        tables_with_columns.append({**table, "columns": column_metadata})
+    return tables_with_columns
 
 
 def retrieve_column_joins(table_ids: list[str]) -> list[dict]:
